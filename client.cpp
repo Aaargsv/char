@@ -4,6 +4,9 @@
 #include <ws2tcpip.h>
 #include <thread>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <cstring>
 
 #define BUFFER_SIZE 4096
@@ -13,7 +16,44 @@ void send_to_server(SOCKET client_socket)
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, BUFFER_SIZE);
     while (true) {
-        std::cin.getline(buffer, BUFFER_SIZE);
+        std::string input;
+        std::getline(std::cin, input);
+        std::string::size_type idx = input.find_first_not_of(" \t");
+        if (idx == std::string::npos)
+            continue;
+        if (input.compare(0, 7, "[FILE]:") == 0 ) {
+            idx = input.find_first_not_of(" \t");
+            if (idx == std::string::npos) {
+                std::cout << "Please enter the file path" << std::endl;
+                continue;
+            }
+
+            std::string file_path = input.substr(7); // example: C:\project\temp.txt
+            std::ifstream file(file_path);
+            if (!file) {
+                std::cout << "[Error]: can't open the file" << std::endl;
+                continue;
+            }
+            std::string file_name;
+            idx = file_path.find_last_of("/\\");
+            if (idx != std::string::npos) {
+                file_name = file_path.substr(idx + 1); // example: temp.txt
+            } else {
+                file_name = file_path;
+            }
+
+            int len = 0;
+            buffer[0] = 0x01; // 0x01 for file transfer;
+            len++;
+            strncpy(buffer + len, file_name.c_str(), 32);
+            len += 32;
+            std::stringstream ss;
+            ss << file.rdbuf();
+            strncpy(buffer + len, ss.str().c_str(), BUFFER_SIZE - len);
+        }
+        else
+            std::cin.getline(buffer, BUFFER_SIZE);
+
         send(client_socket, buffer, BUFFER_SIZE, 0);
     }
 }
