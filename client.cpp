@@ -14,21 +14,22 @@
 void send_to_server(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE];
-    memset(buffer, 0, BUFFER_SIZE);
     while (true) {
+        memset(buffer, 0, BUFFER_SIZE);
         std::string input;
         std::getline(std::cin, input);
         std::string::size_type idx = input.find_first_not_of(" \t");
         if (idx == std::string::npos)
             continue;
-        if (input.compare(0, 7, "[FILE]:") == 0 ) {
-            idx = input.find_first_not_of(" \t");
+        if (input.compare(0, 7, "[file]") == 0 ) {
+            // [type_byte][file_name][file_size][data]
+            idx = input.find_first_not_of(" \t", 7);
             if (idx == std::string::npos) {
                 std::cout << "Please enter the file path" << std::endl;
                 continue;
             }
 
-            std::string file_path = input.substr(7); // example: C:\project\temp.txt
+            std::string file_path = input.substr(idx); // example: C:\project\temp.txt
             std::ifstream file(file_path);
             if (!file) {
                 std::cout << "[Error]: can't open the file" << std::endl;
@@ -45,14 +46,20 @@ void send_to_server(SOCKET client_socket)
             int len = 0;
             buffer[0] = 0x01; // 0x01 for file transfer;
             len++;
-            strncpy(buffer + len, file_name.c_str(), 32);
+            memcpy(buffer + len, file_name.c_str(), 32);
             len += 32;
-            std::stringstream ss;
-            ss << file.rdbuf();
-            strncpy(buffer + len, ss.str().c_str(), BUFFER_SIZE - len);
+            file.seekg(0, std::ios::end);
+            int file_size = file.tellg();
+            file.seekg(0, std::ios::beg);
+            memcpy(buffer + len, &file_size, sizeof(file_size));
+            len += sizeof(file_size);
+            file.read(buffer + len, file_size);
+            file.close();
+
+        } else {
+            buffer[0] = 0x00; // 0x01 for text transfer;
+            strncpy(buffer + 1, input.c_str(), BUFFER_SIZE - 1);
         }
-        else
-            std::cin.getline(buffer, BUFFER_SIZE);
 
         send(client_socket, buffer, BUFFER_SIZE, 0);
     }
@@ -61,16 +68,35 @@ void send_to_server(SOCKET client_socket)
 void receive_from_server(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE + 1];
-    memset(buffer, 0, BUFFER_SIZE + 1);
     while (true) {
+        memset(buffer, 0, BUFFER_SIZE + 1);
         int error_code;
         error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (error_code == -1) {
-            std::cout << "[Error]: can't receive" << std::endl;
+            std::cerr << "[Error]: can't receive" << std::endl;
             return;
         }
 
-        std::cout << buffer << std::endl;
+        // [type_byte][file_name][file_size][data]
+        if (buffer[0] == 0x01) {
+            char file_name[33];
+            int len = 1;
+            memset(file_name, 0, 33);
+            strncpy(file_name, buffer + len, 32);
+            len += 32;
+            int file_size;
+            memcpy(&file_size, buffer + len, sizeof(file_size));
+            len += sizeof(file_size);
+            std::ofstream file(file_name, std::ios::binary);
+            if (!file) {
+                std::cerr << "[Error]: can't create the file" << std::endl;
+                continue;
+            }
+            file.write(buffer + len, file_size);
+            file.close();
+        } else {
+            std::cout << buffer + 1 << std::endl;
+        }
     }
 }
 

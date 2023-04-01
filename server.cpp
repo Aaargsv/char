@@ -21,7 +21,10 @@ void handle_client(SOCKET client_socket)
     set_clients_sockets.insert(client_socket);
     mtx.unlock();
 
-    while ( recv(client_socket, buffer, BUFFER_SIZE, 0) ) {
+    while (true) {
+        int error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        if (error_code == 0 || error_code == SOCKET_ERROR)
+            break;
         for (auto it = set_clients_sockets.begin(); it != set_clients_sockets.end(); ++it) {
             if (*it != client_socket) {
                 send(*it, buffer, BUFFER_SIZE, 0);
