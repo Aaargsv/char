@@ -19,7 +19,8 @@ public:
     /// \param port Port of the remote host
     ///
     ////////////////////////////////////////////////////////////
-    CustomRecorder(SOCKET socket, std::string sender_name, std::string receiver_name) : socket(socket) {}
+    CustomRecorder(SOCKET socket, std::string &sender_name, std::string &receiver_name) :
+        socket(socket), sender_name(sender_name), receiver_name(receiver_name)   {}
 
     ////////////////////////////////////////////////////////////
     /// Destructor
@@ -41,7 +42,7 @@ private:
     ////////////////////////////////////////////////////////////
     virtual bool onStart()
     {
-
+        return true;
     }
 
     ////////////////////////////////////////////////////////////
@@ -51,6 +52,7 @@ private:
     virtual bool onProcessSamples(const sf::Int16* samples, std::size_t sampleCount)
     {
         char sound_buffer[SOUND_SIZE];
+        memset(sound_buffer, 0, SOUND_SIZE);
         sound_buffer[0] = SOUND_PACK; // for sound transfer
         int len = 1;
         memcpy(sound_buffer + len, sender_name.data(), ID_NAME_SIZE);

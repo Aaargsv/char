@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "custom_recorder.h"
 #include "custom_stream.h"
+#include "semaphore.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
@@ -15,11 +16,32 @@
 #include <cstring>
 
 
-
-std::mutex mtx;
 std::string id_name;
 std::string you_line;
 
+void sound_receive(SOCKET client_socket)
+{
+    CustomStream audioStream(client_socket);
+    audioStream.start();
+
+    // Loop until the sound playback is finished
+    while (audioStream.getStatus() != sf::SoundStream::Stopped)
+    {
+        // Leave some CPU time for other threads
+        sf::sleep(sf::milliseconds(100));
+    }
+}
+
+void sound_send(SOCKET client_socket, std::string &receiver_name)
+{
+    CustomRecorder recorder(client_socket, id_name, receiver_name);
+
+    // Start capturing audio data
+    recorder.start(44100);
+    std::cout << "Recording... press enter to stop";
+    std::cin.ignore(10000, '\n');
+    recorder.stop();
+}
 
 int login_server(SOCKET client_socket)
 {
@@ -68,17 +90,21 @@ void send_to_server(SOCKET client_socket)
 {
 
     char buffer[BUFFER_SIZE];
+    std::string receiver_name;
+
     while (true) {
+
+
         memset(buffer, 0, BUFFER_SIZE);
         std::string input;
         std::cout << you_line;
         std::getline(std::cin, input);
+
         std::string::size_type beg_name_idx = input.find_first_not_of(" \t");
         if (beg_name_idx == std::string::npos) {
             clear_line();
             continue;
         }
-
 
         std::string::size_type end_name_idx = input.find_first_of(" \t", beg_name_idx);
         if (end_name_idx == std::string::npos) {
@@ -93,7 +119,7 @@ void send_to_server(SOCKET client_socket)
         }
 
 
-        std::string receiver_name = input.substr(beg_name_idx, end_name_idx);
+        receiver_name = input.substr(beg_name_idx, end_name_idx);
         if (receiver_name == id_name) {
             clear_line();
             continue;
@@ -155,7 +181,7 @@ void send_to_server(SOCKET client_socket)
             file.close();
 
         } else if ((input.compare(data_beg_idx, 8, "sound on") == 0)) {
-            if (sf::SoundBufferRecorder::isAvailable()) {
+            if (!sf::SoundBufferRecorder::isAvailable()) {
                 std::cerr << "[Error]: microphone isn't available" << std::endl;
                 continue;
             } else {
@@ -170,16 +196,11 @@ void send_to_server(SOCKET client_socket)
                 len += ID_NAME_SIZE;
                 send(client_socket, buffer, BUFFER_SIZE, 0);
 
-
-
+                sound_send(client_socket, receiver_name);
 
             }
 
-
-
         } else if ((input.compare(data_beg_idx, 9, "sound off") == 0 )) {
-
-
 
         } else {
             int len = 0;
@@ -191,6 +212,7 @@ void send_to_server(SOCKET client_socket)
             len += ID_NAME_SIZE;
             strncpy(buffer + len, input.substr(data_beg_idx).data(), BUFFER_SIZE - 1 - 2 * ID_NAME_SIZE);
             send(client_socket, buffer, BUFFER_SIZE, 0);
+
         }
     }
 }
@@ -198,11 +220,11 @@ void send_to_server(SOCKET client_socket)
 void receive_from_server(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE + 1];
-
     while (true) {
         memset(buffer, 0, BUFFER_SIZE + 1);
         int error_code;
-        std::string  sender_name;
+        std::string sender_name;
+
         error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (error_code == -1) {
             std::cerr << "[Error]: can't receive" << std::endl;
@@ -210,7 +232,7 @@ void receive_from_server(SOCKET client_socket)
         }
 
         // [type_byte][sender_name][reciver_name][file_name][file_size][data]
-        if (buffer[0] == 0x01) {
+        if (buffer[0] == FILE_PACK) {
             char file_name[33];
             int len = 1;
             sender_name = buffer + 1;
@@ -229,15 +251,17 @@ void receive_from_server(SOCKET client_socket)
             }
             file.write(buffer + len, file_size);
             file.close();
+        } else if (buffer[0] == SOUND_CONNECT) {
+            sound_receive(client_socket);
         } else {
             sender_name = buffer + 1;
-
             clear_line();
             std::cout << sender_name << "> " << buffer + 1 + 2 * ID_NAME_SIZE << std::endl;
             std::cout << you_line;
         }
     }
 }
+
 
 int main()
 {

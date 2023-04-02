@@ -11,7 +11,6 @@
 #include <ws2tcpip.h>
 #include <cstring>
 
-#define SOUND_SIZE 44100
 
 class CustomStream : public sf::SoundStream
 {
@@ -34,7 +33,7 @@ public:
     /// Run the server, stream audio data from the client
     ///
     ////////////////////////////////////////////////////////////
-    void start(unsigned short port)
+    void start()
     {
         if (!m_hasFinished)
         {
@@ -99,14 +98,17 @@ private:
     ////////////////////////////////////////////////////////////
     void receiveLoop()
     {
+
         while (!m_hasFinished)
         {
             // Get waiting audio data from the network
-
             char sound_buffer[SOUND_SIZE];
             int error_code = recv(socket, sound_buffer, SOUND_SIZE, 0);
-            if (error_code == 0 || error_code == SOCKET_ERROR)
+            if (error_code == 0 || error_code == SOCKET_ERROR) {
+                std::cout << "[Error]: can't receive sound" << std::endl;
                 break;
+
+            }
 
             // Extract the message ID
             int len = 0;
@@ -144,8 +146,8 @@ private:
             else
             {
                 // Something's wrong...
-                std::cout << "Invalid packet received..." << std::endl;
-                m_hasFinished = true;
+                //std::cout << "Invalid packet received..." << std::endl;
+                //m_hasFinished = true;
             }
         }
     }
@@ -157,8 +159,8 @@ private:
     std::mutex                m_mutex;
     std::vector<std::int16_t> m_samples;
     std::vector<std::int16_t> m_tempBuffer;
-    std::size_t               m_offset{};
-    bool                      m_hasFinished{};
+    std::size_t               m_offset;
+    bool                      m_hasFinished;
     SOCKET                    socket;
 };
 #endif //CUSTOM_STREAM_H

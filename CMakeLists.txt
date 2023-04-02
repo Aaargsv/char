@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 14)
 link_libraries(ws2_32)
 
 add_executable(server src/server.cpp)
-add_executable(client src/client.cpp include/custom_stream.h include/custom_recorder.h include/chat.h include/utils.h)
+add_executable(client src/client.cpp include/custom_stream.h include/custom_recorder.h include/chat.h include/utils.h include/semaphore.h)
 include_directories(include)
 
 # use static libs

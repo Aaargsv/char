@@ -57,6 +57,7 @@ void handle_client(SOCKET client_socket)
 
         std::string  sender_name = buffer + 1;
         std::string receiver_name = buffer + 1 + ID_NAME_SIZE;
+
         if (receiver_name == "all") {
             for (auto it = map_clients_sockets.begin(); it != map_clients_sockets.end(); ++it) {
                 if (it->first != sender_name) {
@@ -69,7 +70,6 @@ void handle_client(SOCKET client_socket)
                 send(it->second, buffer, BUFFER_SIZE, 0);
             }
         }
-
         memset(buffer, 0, BUFFER_SIZE);
     }
 

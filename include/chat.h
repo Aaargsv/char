@@ -11,8 +11,8 @@
 #define SERVER_ACCEPT_NAME      0x07
 #define SERVER_REJECT_NAME      0x08
 
-#define BUFFER_SIZE             44100 //4096
-#define SOUND_SIZE              44100
+#define BUFFER_SIZE             5000 //4096
+#define SOUND_SIZE              5000
 #define FILE_NAME_SIZE          32
 #define ID_NAME_SIZE            16
 
