@@ -1,12 +1,14 @@
 #ifndef CHAT_CUSTOM_RECORDER_H
 #define CHAT_CUSTOM_RECORDER_H
+
+#include "chat.h"
 #include <SFML/Audio.hpp>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#define SOUND_SIZE 44100
 
-class NetworkRecorder : public sf::SoundRecorder
+
+class CustomRecorder : public sf::SoundRecorder
 {
 public:
 
@@ -17,7 +19,7 @@ public:
     /// \param port Port of the remote host
     ///
     ////////////////////////////////////////////////////////////
-    NetworkRecorder(SOCKET socket) : socket(socket) {}
+    CustomRecorder(SOCKET socket, std::string sender_name, std::string receiver_name) : socket(socket) {}
 
     ////////////////////////////////////////////////////////////
     /// Destructor
@@ -25,7 +27,7 @@ public:
     /// \see SoundRecorder::~SoundRecorder()
     ///
     ////////////////////////////////////////////////////////////
-    ~NetworkRecorder()
+    ~CustomRecorder()
     {
         // Make sure to stop the recording thread
         stop();
@@ -49,13 +51,17 @@ private:
     virtual bool onProcessSamples(const sf::Int16* samples, std::size_t sampleCount)
     {
         char sound_buffer[SOUND_SIZE];
-        sound_buffer[0] = 0x02; // for sound transfer
+        sound_buffer[0] = SOUND_PACK; // for sound transfer
         int len = 1;
+        memcpy(sound_buffer + len, sender_name.data(), ID_NAME_SIZE);
+        len += ID_NAME_SIZE;
+        memcpy(sound_buffer + len, receiver_name.data(), ID_NAME_SIZE);
+        len += ID_NAME_SIZE;
         memcpy(sound_buffer + len, &sampleCount, sizeof(int));
         len += sizeof(int);
         memcpy(sound_buffer + len, samples, sampleCount);
-        int error_code = send(socket, sound_buffer, len + sound_buffer, 0);
-        return (error_code != 0) && (error_code != SOCKET_ERROR)
+        int error_code = send(socket, sound_buffer, SOUND_SIZE, 0);
+        return (error_code != 0) && (error_code != SOCKET_ERROR);
     }
 
     ////////////////////////////////////////////////////////////
@@ -64,32 +70,25 @@ private:
     ////////////////////////////////////////////////////////////
     virtual void onStop()
     {
+        char sound_buffer[SOUND_SIZE];
         // Send a "end-of-stream" packet
-        sf::Packet packet;
-        packet << endOfStream;
-        m_socket.send(packet);
+        int len = 0;
+        sound_buffer[0] = SOUND_OFF;
+        len++;
+        memcpy(sound_buffer + len, sender_name.data(), ID_NAME_SIZE);
+        len += ID_NAME_SIZE;
+        memcpy(sound_buffer + len, receiver_name.data(), ID_NAME_SIZE);
+        len += ID_NAME_SIZE;
+        send(socket, sound_buffer, SOUND_SIZE, 0);
 
-        // Close the socket
-        m_socket.disconnect();
-
-
-        // Send a "end-of-stream" packet
-        sf::Packet packet;
-        packet << clientEndOfStream;
-
-        if (m_socket.send(packet) != sf::Socket::Status::Done)
-        {
-            std::cerr << "Failed to send end-of-stream packet" << std::endl;
-        }
-
-        // Close the socket
-        m_socket.disconnect();
     }
 
     ////////////////////////////////////////////////////////////
     // Member data
     ////////////////////////////////////////////////////////////
     SOCKET  socket; ///< Socket used to communicate with the server
+    std::string  sender_name;
+    std::string  receiver_name;
 };
 
 #endif //CHAT_CUSTOM_RECORDER_H

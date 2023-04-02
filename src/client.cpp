@@ -2,8 +2,8 @@
 
 #include "chat.h"
 #include "utils.h"
-//#include "custom_recorder.h"
-//#include "custom_stream.h"
+#include "custom_recorder.h"
+#include "custom_stream.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <cstring>
+
 
 
 std::mutex mtx;
@@ -154,16 +155,31 @@ void send_to_server(SOCKET client_socket)
             file.close();
 
         } else if ((input.compare(data_beg_idx, 8, "sound on") == 0)) {
-            if (/*!sf::SoundBufferRecorder::isAvailable()*/ 1) {
+            if (sf::SoundBufferRecorder::isAvailable()) {
                 std::cerr << "[Error]: microphone isn't available" << std::endl;
                 continue;
             } else {
+
                 std::cerr << "microphone is on" << std::endl;
+                int len = 0;
+                buffer[0] = SOUND_CONNECT; // 0x00 for text transfer;
+                len++;
+                strncpy(buffer + len, id_name.c_str(), ID_NAME_SIZE); // sender name
+                len += ID_NAME_SIZE;
+                strncpy(buffer + len, receiver_name.c_str(), ID_NAME_SIZE);
+                len += ID_NAME_SIZE;
+                send(client_socket, buffer, BUFFER_SIZE, 0);
+
+
+
+
             }
 
 
 
         } else if ((input.compare(data_beg_idx, 9, "sound off") == 0 )) {
+
+
 
         } else {
             int len = 0;
