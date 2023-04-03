@@ -6,6 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <unordered_map>
 
@@ -80,10 +81,41 @@ void handle_client(SOCKET client_socket)
     closesocket(client_socket);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    const char *server_IP = "127.0.0.1";
-    const int port = 1024;
+    char server_IP[16];
+    int port;
+
+    //const char *server_IP = "192.168.0.101"; //127.0.0.1
+    //const int port = 1024;
+
+    if (argc >= 3) {
+        strncpy(server_IP, argv[1], 16);
+        port = std::stoi(std::string(argv[2]));
+    } else if (argc <= 2) {
+        std::string settings_file_name;
+        if (argc == 2) {
+            settings_file_name = argv[1];
+        } else if (argc == 1) {
+            settings_file_name = "settings.txt";
+        }
+
+        std::ifstream settings_file(settings_file_name);
+        if (!settings_file) {
+            std::cerr << "[Error]: can't open settings file" << std::endl;
+            return 1;
+        }
+        std::string buffer_ip;
+        std::string buffer_port;
+        if (!(settings_file >> buffer_ip >> buffer_port)) {
+            std::cerr << "[Error]: wrong settings format" << std::endl;
+            return 1;
+        }
+        strncpy(server_IP, buffer_ip.c_str(), 16);
+        port = std::stoi(buffer_port);
+    }
+
+
     int error_code;
     in_addr ip_to_num;
 

@@ -16,5 +16,6 @@ set(SFML_DIR "common/SFML-2.5.1/lib/cmake/SFML" )
 find_package(SFML 2.5 COMPONENTS graphics window main network audio REQUIRED)
 target_link_libraries( client
         PRIVATE
-        sfml-audio
+        sfml-audio -static -static-libgcc -static-libstdc++
         )
+target_link_libraries(server -static -static-libgcc -static-libstdc++)
