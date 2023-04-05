@@ -8,7 +8,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
-#include <mutex>
+#include <atomic>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -18,10 +18,11 @@
 
 std::string id_name;
 std::string you_line;
+std::atomic_bool is_sound_off(false);
 
 void sound_receive(SOCKET client_socket)
 {
-    CustomStream audioStream(client_socket);
+    CustomStream audioStream(client_socket, &is_sound_off);
     audioStream.start();
 
     // Loop until the sound playback is finished
@@ -93,8 +94,6 @@ void send_to_server(SOCKET client_socket)
     std::string receiver_name;
 
     while (true) {
-
-
         memset(buffer, 0, BUFFER_SIZE);
         std::string input;
         std::cout << you_line;
@@ -200,8 +199,8 @@ void send_to_server(SOCKET client_socket)
 
             }
 
-        } else if ((input.compare(data_beg_idx, 9, "sound off") == 0 )) {
-
+        } else if ((input.compare(0, 9, "sound off") == 0 )) {
+            is_sound_off = true;
         } else {
             int len = 0;
             buffer[0] = TEXT_PACK; // 0x00 for text transfer;
@@ -253,7 +252,7 @@ void receive_from_server(SOCKET client_socket)
             file.close();
         } else if (buffer[0] == SOUND_CONNECT) {
             sound_receive(client_socket);
-        } else {
+        } else if (buffer[0] == TEXT_PACK) {
             sender_name = buffer + 1;
             clear_line();
             std::cout << sender_name << "> " << buffer + 1 + 2 * ID_NAME_SIZE << std::endl;

@@ -4,6 +4,7 @@
 #include "chat.h"
 #include <SFML/Audio.hpp>
 #include <mutex>
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -19,10 +20,11 @@ public:
     /// Default constructor
     ///
     ////////////////////////////////////////////////////////////
-    CustomStream(SOCKET socket):
+    CustomStream(SOCKET socket, std::atomic_bool *is_sound_off):
     socket(socket),
     m_offset(0),
-    m_hasFinished(false)
+    m_hasFinished(false),
+    is_sound_off(is_sound_off)
 
     {
         // Set the sound parameters
@@ -35,16 +37,14 @@ public:
     ////////////////////////////////////////////////////////////
     void start()
     {
-        if (!m_hasFinished)
-        {
+        if (!m_hasFinished) {
             // Start playback
             play();
 
             // Start receiving audio data
             receiveLoop();
         }
-        else
-        {
+        else {
             // Start playback
             play();
         }
@@ -57,9 +57,11 @@ private:
     ////////////////////////////////////////////////////////////
     virtual bool onGetData(sf::SoundStream::Chunk& data) override
     {
+
         // We have reached the end of the buffer and all audio data have been played: we can stop playback
-        if ((m_offset >= m_samples.size()) && m_hasFinished)
+        if ((m_offset >= m_samples.size()) && m_hasFinished) {
             return false;
+        }
 
         // No new data has arrived since last update: wait until we get some
         while ((m_offset >= m_samples.size()) && !m_hasFinished)
@@ -101,6 +103,12 @@ private:
 
         while (!m_hasFinished)
         {
+            if (*is_sound_off) {
+                m_hasFinished = true;
+                *is_sound_off = false;
+                continue;
+            }
+
             // Get waiting audio data from the network
             char sound_buffer[SOUND_SIZE];
             int error_code = recv(socket, sound_buffer, SOUND_SIZE, 0);
@@ -121,8 +129,7 @@ private:
             len += sizeof(int);
 
 
-            if (id == SOUND_PACK)
-            {
+            if (id == SOUND_PACK) {
                 // Extract audio samples from the packet, and append it to our samples buffer
                 std::size_t sampleCount = record_size / sizeof(std::int16_t);
 
@@ -136,15 +143,12 @@ private:
                                 sound_buffer + len,
                                 sampleCount * sizeof(std::int16_t));
                 }
-            }
-            else if (id == SOUND_OFF)
-            {
+            } else if (id == SOUND_OFF) {
                 // End of stream reached: we stop receiving audio data
                 std::cout << "Audio data has been 100% received!" << std::endl;
                 m_hasFinished = true;
             }
-            else
-            {
+            else {
                 // Something's wrong...
                 //std::cout << "Invalid packet received..." << std::endl;
                 //m_hasFinished = true;
@@ -162,5 +166,6 @@ private:
     std::size_t               m_offset;
     bool                      m_hasFinished;
     SOCKET                    socket;
+    std::atomic_bool         *is_sound_off;
 };
 #endif //CUSTOM_STREAM_H
