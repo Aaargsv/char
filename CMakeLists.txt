@@ -14,8 +14,15 @@ set( SFML_STATIC_LIBRARIES TRUE )
 #directory where the cmake files for SFML are. You will want to change this to wherever your SFML installation is
 set(SFML_DIR "common/SFML-2.5.1/lib/cmake/SFML" )
 find_package(SFML 2.5 COMPONENTS graphics window main network audio REQUIRED)
+
+add_library(cryptopp STATIC IMPORTED)
+set_target_properties(cryptopp PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/common/cryptopp/lib/libcryptopp.a)
+add_dependencies(cryptopp chat)
+
+
 target_link_libraries( client
         PRIVATE
-        sfml-audio -static -static-libgcc -static-libstdc++
+        sfml-audio cryptopp  -static -static-libgcc -static-libstdc++
         )
-target_link_libraries(server -static -static-libgcc -static-libstdc++)
+target_link_libraries(server cryptopp -static -static-libgcc -static-libstdc++)
