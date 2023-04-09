@@ -7,6 +7,7 @@ link_libraries(ws2_32)
 add_executable(server src/server.cpp)
 add_executable(client src/client.cpp include/custom_stream.h include/custom_recorder.h include/chat.h include/utils.h include/semaphore.h)
 include_directories(include)
+include_directories(common/cryptopp/include)
 
 # use static libs
 set( SFML_STATIC_LIBRARIES TRUE )

@@ -1,6 +1,9 @@
 #define _WIN32_WINNT 0x0601
 
 #include "chat.h"
+#include <cryptopp/aes.h>
+#include <cryptopp/rsa.h>
+#include <cryptopp/osrng.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
@@ -13,6 +16,8 @@
 std::mutex mtx;
 std::unordered_map<std::string , SOCKET> map_clients_sockets;
 std::string  server_name = "server";
+
+CryptoPP::byte aes_key[CryptoPP::AES::DEFAULT_KEYLENGTH];
 
 void handle_client(SOCKET client_socket)
 {
@@ -48,6 +53,40 @@ void handle_client(SOCKET client_socket)
             send(client_socket, buffer, BUFFER_SIZE, 0);
         }
         mtx.unlock();
+    }
+
+    memset(buffer, 0, BUFFER_SIZE);
+    while (true) {
+        int error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        if (error_code == 0 || error_code == SOCKET_ERROR) {
+            std::cout << "Client disconnected" << std::endl;
+            closesocket(client_socket);
+            return;
+        }
+
+        if (buffer[0] != CRYPTO_REQUEST)
+            continue;
+        int len = 1;
+        int key_size;
+        memcpy(&key_size, buffer + len, sizeof(int));
+        len += sizeof(int);
+
+        CryptoPP::ByteQueue queue;
+        queue.Put(reinterpret_cast<CryptoPP::byte *>(buffer + len), key_size);
+        CryptoPP::RSA::PublicKey public_key;
+        public_key.Load(queue);
+        CryptoPP::Integer private_key_aes (aes_key, CryptoPP::AES::DEFAULT_KEYLENGTH);
+        auto encrypt_key = public_key.ApplyFunction(private_key_aes);
+
+        memset(buffer, 0, BUFFER_SIZE);
+        len = 0;
+        buffer[0] = CRYPTO_RESPONSE;
+        len++;
+        strncpy(buffer + len, "server", ID_NAME_SIZE);
+        len += ID_NAME_SIZE;
+        encrypt_key.Encode(reinterpret_cast<CryptoPP::byte*>(buffer + len), CryptoPP::AES::DEFAULT_KEYLENGTH);
+        send(client_socket, buffer, BUFFER_SIZE, 0);
+        break;
     }
 
     // transfer
@@ -181,6 +220,12 @@ int main(int argc, char *argv[])
 
     sockaddr_in client_info;
     int client_info_size = sizeof(client_info);
+
+    // Geneneration crypto key
+    memset( aes_key, 0x00, CryptoPP::AES::DEFAULT_KEYLENGTH );
+    CryptoPP::AutoSeededRandomPool prng;
+    prng.GenerateBlock(aes_key, CryptoPP::AES::DEFAULT_KEYLENGTH);
+
     while (true) {
         //Client socket creation and acception in case of connection
 

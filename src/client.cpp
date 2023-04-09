@@ -5,6 +5,9 @@
 #include "custom_recorder.h"
 #include "custom_stream.h"
 #include "semaphore.h"
+#include <cryptopp/aes.h>
+#include <cryptopp/rsa.h>
+#include <cryptopp/osrng.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
@@ -19,6 +22,7 @@
 std::string id_name;
 std::string you_line;
 std::atomic_bool is_sound_off(false);
+CryptoPP::byte aes_key[CryptoPP::AES::DEFAULT_KEYLENGTH];
 
 void sound_receive(SOCKET client_socket)
 {
@@ -84,6 +88,42 @@ int login_server(SOCKET client_socket)
         }
     }
     you_line = id_name + ">";
+
+    memset(buffer, 0, BUFFER_SIZE);
+
+    CryptoPP::AutoSeededRandomPool prng;
+    CryptoPP::RSA::PrivateKey priv_key;
+    priv_key.GenerateRandomWithKeySize(prng, 128);
+    CryptoPP::RSA::PublicKey pub_key(priv_key);
+    CryptoPP::ByteQueue queue;
+    int rsa_key_size = queue.TotalBytesRetrievable();
+    priv_key.Save(queue);
+    char key_buffer[BUFFER_SIZE];
+    queue.Get(reinterpret_cast<CryptoPP::byte*>(key_buffer), rsa_key_size);
+
+    int len = 0;
+    buffer[0] = CRYPTO_REQUEST;
+    len++;
+    memcpy(buffer + len, &rsa_key_size, sizeof(int));
+    len += sizeof(int);
+    memcpy(buffer + len, key_buffer, rsa_key_size);
+    send(client_socket, buffer, BUFFER_SIZE, 0);
+
+    int error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
+    if (error_code == -1) {
+        std::cerr << "[Error]: can't receive" << std::endl;
+        return 1;
+    }
+
+    len = 1 + ID_NAME_SIZE;
+    memcpy(key_buffer, buffer + len, CryptoPP::AES::DEFAULT_KEYLENGTH);
+    CryptoPP::Integer encrypt_aes_key(reinterpret_cast<CryptoPP::byte*>(key_buffer),
+                                      CryptoPP::AES::DEFAULT_KEYLENGTH);
+    auto decrypt_aes_key = priv_key.CalculateInverse(prng, encrypt_aes_key);
+    decrypt_aes_key.Encode(reinterpret_cast<CryptoPP::byte*>(aes_key),
+                           CryptoPP::AES::DEFAULT_KEYLENGTH,
+                           CryptoPP::Integer::UNSIGNED);
+
     return 0;
 }
 

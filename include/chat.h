@@ -10,6 +10,8 @@
 #define ID_PACK                 0x06
 #define SERVER_ACCEPT_NAME      0x07
 #define SERVER_REJECT_NAME      0x08
+#define CRYPTO_REQUEST          0x09
+#define CRYPTO_RESPONSE         0x0A
 
 #define BUFFER_SIZE             5000 //4096
 #define SOUND_SIZE              5000
