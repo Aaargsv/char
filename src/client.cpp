@@ -4,7 +4,6 @@
 #include "utils.h"
 #include "custom_recorder.h"
 #include "custom_stream.h"
-#include "semaphore.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <thread>
@@ -20,6 +19,7 @@ std::string id_name;
 std::string you_line;
 std::atomic_bool is_sound_off(false);
 
+/// Start sound thread
 void sound_receive(SOCKET client_socket)
 {
     CustomStream audioStream(client_socket, &is_sound_off);
@@ -44,10 +44,19 @@ void sound_send(SOCKET client_socket, std::string &receiver_name)
     recorder.stop();
 }
 
+/**
+ * Send name to the server,
+ * receives approval that
+ * the name is accepted
+ * @param client_socket
+ * @return error status
+ */
+
 int login_server(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE];
 
+    /// Name entry loop
     while (true) {
         std::cout << "Please enter your ID name (15 characters): ";
         std::cin >> id_name;
@@ -65,6 +74,7 @@ int login_server(SOCKET client_socket)
         }
     }
 
+    /// Send name and receive approval loop
     while (true) {
         memset(buffer, 0, BUFFER_SIZE);
         buffer[0] = ID_PACK;
@@ -93,6 +103,7 @@ void send_to_server(SOCKET client_socket)
     char buffer[BUFFER_SIZE];
     std::string receiver_name;
 
+    /// Input loop
     while (true) {
         memset(buffer, 0, BUFFER_SIZE);
         std::string input;
@@ -117,13 +128,14 @@ void send_to_server(SOCKET client_socket)
             continue;
         }
 
-
+        /// Get receiver name
         receiver_name = input.substr(beg_name_idx, end_name_idx);
         if (receiver_name == id_name) {
             clear_line();
             continue;
         }
 
+        /// If file transfer
         if (input.compare(data_beg_idx, 6, "[file]") == 0 ) {
 
             // [type_byte][sender_name][reciver_name][file_name][file_size][data]
@@ -179,12 +191,12 @@ void send_to_server(SOCKET client_socket)
 
             file.close();
 
+            /// If sound transfer
         } else if ((input.compare(data_beg_idx, 8, "sound on") == 0)) {
             if (!sf::SoundBufferRecorder::isAvailable()) {
                 std::cerr << "[Error]: microphone isn't available" << std::endl;
                 continue;
             } else {
-
                 std::cerr << "microphone is on" << std::endl;
                 int len = 0;
                 buffer[0] = SOUND_CONNECT; // 0x00 for text transfer;
@@ -198,9 +210,10 @@ void send_to_server(SOCKET client_socket)
                 sound_send(client_socket, receiver_name);
 
             }
-
+            /// If you want to disconnect from audio
         } else if ((input.compare(0, 9, "sound off") == 0 )) {
             is_sound_off = true;
+            /// If text message transfer
         } else {
             int len = 0;
             buffer[0] = TEXT_PACK; // 0x00 for text transfer;
@@ -219,6 +232,7 @@ void send_to_server(SOCKET client_socket)
 void receive_from_server(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE + 1];
+    /// Receive loop
     while (true) {
         memset(buffer, 0, BUFFER_SIZE + 1);
         int error_code;
@@ -230,7 +244,8 @@ void receive_from_server(SOCKET client_socket)
             return;
         }
 
-        // [type_byte][sender_name][reciver_name][file_name][file_size][data]
+        /// [type_byte][sender_name][reciver_name][file_name][file_size][data]
+        /// if file receiving
         if (buffer[0] == FILE_PACK) {
             char file_name[33];
             int len = 1;
@@ -250,13 +265,20 @@ void receive_from_server(SOCKET client_socket)
             }
             file.write(buffer + len, file_size);
             file.close();
+            /// if sound receiving
         } else if (buffer[0] == SOUND_CONNECT) {
             sound_receive(client_socket);
+            /// if text msg receiving
         } else if (buffer[0] == TEXT_PACK) {
             sender_name = buffer + 1;
             clear_line();
             std::cout << sender_name << "> " << buffer + 1 + 2 * ID_NAME_SIZE << std::endl;
             std::cout << you_line;
+            /*
+             *  /\_/\
+               ( o.o )
+                > ^ <
+             */
         }
     }
 }
@@ -266,8 +288,6 @@ int main(int argc, char *argv[])
 {
     char server_IP[16];
     int port;
-    //const char *server_IP = "192.168.0.101"; //127.0.0.1
-    //const int port = 1024;
 
     if (argc >= 3) {
         strncpy(server_IP, argv[1], 16);
@@ -352,6 +372,13 @@ int main(int argc, char *argv[])
     } else {
         std::cout << "You have successfully logged in" << std::endl ;
     }
+
+    /**
+     * @brief
+     * Sending and receiving
+     * work in parallel in
+     * two threads
+     */
 
     std::thread thread_send(send_to_server, client_socket);
     std::thread thread_receive(receive_from_server, client_socket);

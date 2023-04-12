@@ -14,14 +14,21 @@ std::mutex mtx;
 std::unordered_map<std::string , SOCKET> map_clients_sockets;
 std::string  server_name = "server";
 
+/**
+ * Check user name,
+ * confirm user name,
+ * resend data from one
+ * client to another
+ * @param client_socket
+ */
+
 void handle_client(SOCKET client_socket)
 {
     char buffer[BUFFER_SIZE + 1];
     memset(buffer, 0, BUFFER_SIZE + 1);
     std:: string client_id_name;
 
-    // confirm client id
-
+    /// Checking name loop
     while (true) {
         int error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (error_code == 0 || error_code == SOCKET_ERROR) {
@@ -50,7 +57,7 @@ void handle_client(SOCKET client_socket)
         mtx.unlock();
     }
 
-    // transfer
+    // Resending loop
     while (true) {
         int error_code = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (error_code == 0 || error_code == SOCKET_ERROR)
@@ -59,7 +66,9 @@ void handle_client(SOCKET client_socket)
         std::string  sender_name = buffer + 1;
         std::string receiver_name = buffer + 1 + ID_NAME_SIZE;
 
+
         if (receiver_name == "all") {
+            /// if broadcasting
             for (auto it = map_clients_sockets.begin(); it != map_clients_sockets.end(); ++it) {
                 if (it->first != sender_name) {
                     send(it->second, buffer, BUFFER_SIZE, 0);
@@ -86,8 +95,6 @@ int main(int argc, char *argv[])
     char server_IP[16];
     int port;
 
-    //const char *server_IP = "192.168.0.101"; //127.0.0.1
-    //const int port = 1024;
 
     if (argc >= 3) {
         strncpy(server_IP, argv[1], 16);
@@ -125,7 +132,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // WinSock initialization
+    /// WinSock initialization
     WSADATA wsData;
     error_code = WSAStartup(MAKEWORD(2,2), &wsData);
     if ( error_code != 0 ) {
@@ -136,7 +143,7 @@ int main(int argc, char *argv[])
     else
         std::cout << "WinSock initialization is OK" << std::endl;
 
-    // Server socket initialization
+    /// Server socket initialization
     SOCKET server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == INVALID_SOCKET) {
         std::cerr << "[Error]: can't initialize socket # ";
@@ -148,7 +155,7 @@ int main(int argc, char *argv[])
     else
         std::cout << "Server socket initialization is OK" << std::endl;
 
-    // Server socket binding
+    /// Server socket binding
     sockaddr_in server_info;
     memset(&server_info, 0, sizeof(server_info));
     server_info.sin_family = AF_INET;
@@ -166,7 +173,7 @@ int main(int argc, char *argv[])
     else
         std::cout << "Binding socket to Server info is OK" << std::endl;
 
-    //Starting to listen to any Clients
+    /// Starting to listen to any clients
     error_code = listen(server_socket, SOMAXCONN);
     if ( error_code != 0 ) {
         std::cerr << "[Error]: can't start to listen to. Error # ";
@@ -182,7 +189,12 @@ int main(int argc, char *argv[])
     sockaddr_in client_info;
     int client_info_size = sizeof(client_info);
     while (true) {
-        //Client socket creation and acception in case of connection
+        /*
+         * @brief
+         * Create client socket,
+         * wait for connection,
+         * accept in case of connection
+         */
 
         memset(&client_info, 0, sizeof(client_info));
         SOCKET client_socket = accept(server_socket, (sockaddr*)&client_info, &client_info_size);
@@ -198,10 +210,17 @@ int main(int argc, char *argv[])
         else {
             std::cout << "Connection to a client established successfully" << std::endl;
             char client_IP[32];
-            inet_ntop(AF_INET, &client_info.sin_addr, client_IP, INET_ADDRSTRLEN);	// Convert connected client's IP to standard string format
+            /// Convert connected client's IP to standard string format
+            inet_ntop(AF_INET, &client_info.sin_addr, client_IP, INET_ADDRSTRLEN);
             std::cout << "Client connected with IP address " << client_IP << std::endl;
 
         }
+
+        /**
+         * @brief
+         * Create separate thread
+         * to handle every client
+         */
 
         std::thread thread_handle_client(handle_client, client_socket);
         thread_handle_client.detach();
